@@ -39,7 +39,8 @@ python train.py --arch resnet18 \
 
 ### Jacbian Regularization (JR)
 Install jacobian_regularizer first:
-`` pip install git+https://github.com/facebookresearch/jacobian_regularizer ``
+
+``pip install git+https://github.com/facebookresearch/jacobian_regularizer ``
 
 
 ```
@@ -47,7 +48,20 @@ python train.py --arch resnet18 \
                 --dataset cifar10 \
                 --reg \
                 --reg-type jr \
-                --jr-beta 0.1 \
-                --save-dir ./cifar10-models/resnet18-jr-0.1 \
+                --jr-beta 0.05 \
+                --save-dir ./cifar10-models/resnet18-jr-0.05 \
                 --epoch 200
 ```
+
+### Input Regularization (IR)
+
+```
+python train.py --arch resnet18 \
+                --dataset cifar10 \
+                --reg \
+                --reg-type ig \
+                --ig-beta 0.1 \
+                --save-dir ./cifar10-models/resnet18-ir-0.1 \
+                --epoch 200
+```
+
