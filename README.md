@@ -12,7 +12,7 @@ In this paper, we take a further step towards understanding adversarial transfer
 Building on these insights, we further explore the impacts of prevalent data augmentation and gradient regularization on transferability and analyze how the trade-off manifests in various training methods, thus building a comprehensive blueprint for the regulation mechanisms behind transferability. Finally, we provide a general route for constructing superior surrogates to boost transferability, which optimizes both model smoothness and gradient similarity simultaneously, e.g., the combination of input gradient regularization and sharpnessaware minimization (SAM), validated by extensive experiments. In summary, we call for attention to the united impacts of these two factors for launching effective transfer attacks, rather than optimizing one while ignoring the other, and emphasize the crucial role of manipulating surrogate models.
 
 ## Model Training
-All the training methods reported in our paper are implemented in the ``train.py`` under the ``Train`` directory.
+All the training methods reported in our paper are implemented in the ``train.py`` under the ``CIFAR_Train`` directory.
 ### SAM 
 ```
 python train.py --arch resnet18 \
