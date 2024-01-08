@@ -23,7 +23,7 @@ from utils import WASAM, MultipleSWAModels
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--arch', type=str, default='ResNet18',
+    parser.add_argument('--arch', type=str, default='resnet18',
                         help='choose the model architecture')
     parser.add_argument('--dataset', type=str, default='cifar10',
                         choices=['cifar10', 'cifar100', 'cifar10-vit', 'imagenett', 'tiny-imagenet', 'GTSRB', 'imagenet-10'],
