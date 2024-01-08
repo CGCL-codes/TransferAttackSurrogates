@@ -6,7 +6,6 @@ from torch.utils.data import DataLoader
 
 from utils import data
 
-import timm
 
 import torch
 import wandb
@@ -105,18 +104,6 @@ def get_warm_up_with_cosine_lr(args, optim):
             math.cos((epoch - args.warm_up_epoch) / (args.epoch - args.warm_up_epoch) * math.pi) + 1)
     scheduler = torch.optim.lr_scheduler.LambdaLR(optim, lr_lambda=warm_up_with_cosine_lr)
     return scheduler
-
-
-def get_jac_loss_mine(logits, x):
-    from torch.nn.utils import parameters_to_vector
-    grads = torch.autograd.grad(list(logits.view(-1)), inputs=x, create_graph=True)
-    grads = parameters_to_vector(grads)
-    return torch.norm(grads)
-
-def get_jac_loss_true(model, X):
-    from torch.autograd.functional import jacobian
-    grads = jacobian(lambda x_: model(x_), X)
-    return torch.norm(grads[:,:,0].view(-1))
 
 
 def get_jac_loss(logits, x):
