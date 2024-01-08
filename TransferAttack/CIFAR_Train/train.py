@@ -57,10 +57,6 @@ def get_args():
     parser.add_argument('--warm-up-epoch', type=int, default=10)
     parser.add_argument('--clip', action='store_true')
     parser.add_argument('--sam', action='store_true')
-    parser.add_argument('--swa', action='store_true')
-    parser.add_argument('--swa-start-coeff', type=float, default=0.75)
-    parser.add_argument('--remain-constant', action='store_true')
-    parser.add_argument('--constantLR', type=float, default=0.05)
     parser.add_argument('--rho', type=float, default=0.05, help='sam parameters')
     parser.add_argument('--reg', action='store_true')
     parser.add_argument('--reg-type', type=str, default='jr', choices=['jr', 'ig', 'jr_true',  'model', 'logits_model'])
@@ -68,7 +64,6 @@ def get_args():
     parser.add_argument('--ig-beta', type=float, default=100.)
     parser.add_argument('--cutmix', action='store_true')
     parser.add_argument('--mixup', action='store_true')
-    parser.add_argument('--samemixup', action='store_true')
     parser.add_argument('--cutout', action='store_true')
     parser.add_argument('--cutout-size', type=int, default=32)
     parser.add_argument('--robust', action='store_true')
@@ -89,15 +84,8 @@ def get_args():
     parser.add_argument('--pgd-norm-type', type=str, default='l-infty',
                         choices=['l-infty', 'l2', 'l1'],
                         help='set the type of metric norm in pgd')
-    # parser.add_argument('--cuda', type=int, default=0)
+    parser.add_argument('--cuda', type=int, default=0)
     parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--entropy', action='store_true')
-    parser.add_argument('--L', type=int, default=20)
-    parser.add_argument('--times', type=int, default=20)
-    parser.add_argument('--gamma-fix', type=float, default=0)
-    parser.add_argument('--constant', action='store_true')
-    parser.add_argument('--wsam', action='store_true')
-    parser.add_argument('--setting-lr', action='store_true')
     return parser.parse_args()
 
 
@@ -196,77 +184,33 @@ def train(model, normalize, optim, criterion, train_loader, test_loader1):
 
         pbar = tqdm(train_loader, total=len(train_loader))
 
-        if args.setting_lr:
-            stage = epoch // 10 + 1
-            current_epoch = epoch % 10 + 1
-            # 计算学习率
-            if current_epoch <= 8:
-                lr = 1.0 / stage
-            else:
-                lr = 10 ** (-1 - stage / 2)
-            # 设置当前epoch的学习率
-            # 设置当前epoch的学习率
-            for param_group in optim.param_groups:
-                param_group['lr'] = lr
-
         for x, y in pbar:
             if not args.cpu:
                 x, y = x.cuda(), y.cuda()
-            model.zero_grad()
             optim.zero_grad()
-            if args.robust and not args.TRADE:
+            if args.robust:
                 model.eval()
                 x = attacker(x, y)
 
             model.train()
 
             if not args.reg:
-                if args.TRADE:
-                    def closure():
-                        loss, logits = trades_loss(model=wrap_model,
-                                           x_natural=x,
-                                           y=y,
-                                           optimizer=optim,
-                                           step_size=args.pgd_step_size,
-                                           epsilon=args.pgd_radius,
-                                           perturb_steps=args.pgd_steps,
-                                           distance=args.pgd_norm_type)
-                        loss.backward()
-                        return loss, logits
+                def closure():
+                    logits = wrap_model(x)
+                    loss = criterion(logits, y).mean() if args.wsam else criterion(logits, y)
+                    loss.backward()
+                    return loss, logits
 
-                else:
-                    def closure():
-                        logits = wrap_model(x)
-                        loss = criterion(logits, y).mean() if args.wsam else criterion(logits, y)
-                        loss.backward()
-                        return loss, logits
-
-                if args.wsam:
-                    def ascent_closure():
-                        logits = wrap_model(x)
-
-                        loss = criterion(logits, y)
-                        sorted_indices = torch.argsort(loss)
-                        selected_indices = sorted_indices[:int(2 / 3 * len(loss))]
-                        selected_loss_mean = torch.mean(loss[selected_indices])
-                        selected_loss_mean.backward()
-                        return loss.mean(), logits
             else:
                 x.requires_grad = True
                 def closure():
                     logits = wrap_model(x)
                     loss = criterion(logits, y)
-                    # if args.reg_type == 'jr_true':
-                    #     loss += args.jr_beta * get_jac_loss_true(wrap_model, x)
                     if args.reg_type == 'jr':
                         loss += args.jr_beta * get_jac_loss(logits, x)
                         loss /= x.shape[0]
-                    # elif args.reg_type == 'mine':
-                    #     loss += args.jr_beta * get_jac_loss_mine(logits, x)
                     elif args.reg_type == 'model':
                         loss += get_model_regularization(loss, model, args.jr_beta)
-                    # elif args.reg_type == 'logits_model':
-                    #     loss += args.jr_beta * get_logits_model_regularization(logits, model)
                     else:
                         assert args.reg_type == 'ig'
                         loss += args.ig_beta * get_input_gradient_loss(loss, x)
@@ -274,18 +218,12 @@ def train(model, normalize, optim, criterion, train_loader, test_loader1):
                     loss.backward()
                     return loss, logits
 
-            if args.wsam:
-                loss, logits= ascent_closure()
-            else:
-                loss, logits = closure()
 
-            if (not args.sam) and (not args.entropy) and (args.optim != 'APM'):
-                if not args.swa:
-                    optim.step()
-                else:
-                    optim.base_optimizer.step()
-            else:
+            loss, logits = closure()
 
+            if not args.sam
+                optim.step()
+            else:
                 optim.step(closure=closure)
 
             _, predicted = torch.max(logits.data, 1)
@@ -299,18 +237,6 @@ def train(model, normalize, optim, criterion, train_loader, test_loader1):
             pbar.set_description("Train acc %.2f Loss: %.2f" % (acc_meter.mean * 100, loss_meter.mean))
             utils.add_log(log, 'acc', acc)
             utils.add_log(log, 'loss', loss.item())
-        if not args.setting_lr:
-            scheduler.step()
-        if args.swa:
-            if epoch >= swa_start_epoch:
-                optim.update_swa()
-            # before model evaluation, swap weights with averaged weights
-                optim.swap_swa_sgd()
-                optim.bn_update(train_loader, wrap_model, device="cuda:0")  # <-------------- Update batchnorm statistics
-
-            # if remain constant and reach to swa start, set lr to be constant
-            if args.remain_constant and epoch >= swa_start_epoch -1:
-                optim.param_groups[0]['lr'] = args.constantLR
 
         test_acc, test_loss = utils.evaluate(wrap_model, torch.nn.CrossEntropyLoss(), test_loader1, args.cpu)
         if args.robust:
@@ -327,11 +253,6 @@ def train(model, normalize, optim, criterion, train_loader, test_loader1):
             best_acc = test_acc
             save_checkpoint(args.save_dir, 'best-clean-eval', model, optim, log)
         save_checkpoint(args.save_dir, 'model-fin', model, optim, log)
-        if args.swa:
-            if epoch >= swa_start_epoch: 
-                optim.swap_swa_sgd()
-                save_checkpoint(args.save_dir, 'model-fin-sgd', model, optim, log)
-
     return model, optim, log
 
 
@@ -401,12 +322,12 @@ if __name__ == '__main__':
     args = get_args()
     seed_everything(args.seed) # 12 for target model
     if args.dataset == 'cifar10':
-        project_name ='TransferAttack-ModelTrainRobust'
-    elif args.dataset == 'imagenett':
+        project_name ='TransferAttack-CIFAR10'
+    elif args.dataset == 'imagenette':
         if 'scratch' in args.save_dir:
             project_name = 'TransferAttack-Imagenette-Scratch'
         else:
-            project_name ='TransferAttack-Imagenett'
+            project_name ='TransferAttack-Imagenette'
 
     elif args.dataset == 'GTSRB':
         project_name = 'TransferAttack-GTSRB'
