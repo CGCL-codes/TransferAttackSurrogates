@@ -67,3 +67,15 @@ python train.py --arch resnet18 \
 
 
 ### SAM & IR
+
+```
+python train.py --arch resnet18 \
+                --dataset cifar10 \
+                --reg \
+                --reg-type ig \
+                --ig-beta 0.1 \
+                --sam \
+                --rho 0.1 \
+                --save-dir ./cifar10-models/resnet18-sam-0.1-ir-0.1 \
+                --epoch 200
+```
