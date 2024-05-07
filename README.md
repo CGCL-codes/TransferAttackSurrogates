@@ -19,7 +19,7 @@ python train.py --arch resnet18 \
                 --dataset cifar10 \
                 --sam \
                 --rho 0.1 \
-                --save-dir ./cifar10-models/resnet18-sam-0.05 \
+                --save-dir ./cifar10-models/resnet18-sam-0.1 \
                 --epoch 200
 
 ```
