@@ -79,3 +79,7 @@ python train.py --arch resnet18 \
                 --save-dir ./cifar10-models/resnet18-sam-0.1-ir-0.1 \
                 --epoch 200
 ```
+
+## Hessian Computation
+We use the ``get_hessian_eigenvalues_from_sample`` function in ``hessian.py`` to compute the dominant eigenvalue. Note, we set the ``which='LM'`` to the get the eigenvalue with the largest magnitude, and we report the its absolute value in our paper.
+
